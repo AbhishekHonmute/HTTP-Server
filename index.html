@@ -6,11 +6,12 @@
 <body>
 	<p>This is index page</p>
 	<!-- <img src="RON2.gif" alt="RON Image" width="400" height="200">
-	<img src="RON.png" alt="RON Image" width="400" height="200">
-	<img src="test/RON1.jpg" alt="RON Image" width="400" height="200"> -->
-	<form method="post" target="form.php">
+	<img src="RON.png" alt="RON Image" width="400" height="200">-->
+	<img src="test/RON1.jpg" alt="RON Image" width="400" height="200">
+	<form method="POST" action="POST_DATA/post_data.json" enctype="multipart/form-data">
 		<input type="text" name="name"><br>
 		<input type="text" name="pass"><br>
+		<input type="file" name="fileinput"><br>
 		<button type="submit">login</button>
 	</form>
 </body>
