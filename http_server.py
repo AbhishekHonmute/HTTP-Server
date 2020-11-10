@@ -190,13 +190,6 @@ def client_function (client_socket) :
 	else :
 		cookie_id = req_headers['Cookie']
 
-	# to save request in log file
-	log_file = open("access.log", "a+")
-	log_data = res_headers['Date'] + "   ---   " + main_req_line + "   ---   " + req_headers['User-Agent'] + "\r\n"
-	print(log_data)
-	log_file.write(log_data)
-	log_file.close()
-
 	# remove starting '/' from the uri
 	main_req_header[1] = main_req_header[1][1:]
 
@@ -529,7 +522,22 @@ def client_function (client_socket) :
 		body = "405 Method Not Allowed"
 		reply = encode_headers(main_req_header[2], status_code, res_headers)
 		reply = reply + body + '\n'.encode('utf-8')
+
+	# to save request in log file
+	log_file = open("log_files/access.log", "a+")
+	log_data = res_headers['Date'] + " --- " + main_req_line + " --- " + status_code + " --- " + req_headers['User-Agent'] + "\r\n"
+	log_file.write(log_data)
+	log_file.close()
 	
+	# if error found then store the info in error.log file
+	error_codes = [400, 403, 404, 405, 411, 412, 500, 505]
+	if status_code in error_codes :
+		log_file = open("log_files/error.log", "a+")
+		log_data = res_headers['Date'] + " --- " + main_req_line + " --- " + status_code + " --- " + status_codes[status_code] + "\r\n"
+		print(log_data)
+		log_file.write(log_data)
+		log_file.close()
+
 	# Replying to the client
 	try :	
 		client_socket.send(reply)
