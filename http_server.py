@@ -4,6 +4,8 @@ import datetime
 import socket
 import json
 import re
+# for genrerating cookie 
+import shortuuid
 
 # Constants
 connected_clients = []
@@ -19,6 +21,7 @@ status_codes = {
     100: "Informational",
     200: "OK",
 	201: "Created",
+	202: "Accepted",
     300: "Redirection",
     304: "Not Modified",
     400: "Client-Error",
@@ -160,11 +163,12 @@ def client_function (client_socket) :
 	print("#############")
 	print(request_headers)
 	print("#############")
-	print(request_body.decode('utf-8'))
+	# print(request_body.decode('utf-8'))
 	print("#############")
 	fields = request_headers.split("\r\n")
+	main_req_line = fields[0]
 	main_req_header = fields[0].split(" ")
-	fields = fields[2:]
+	fields = fields[1:]
 	req_headers = {}
 	res_headers = {}
 	for f in fields :
@@ -177,6 +181,21 @@ def client_function (client_socket) :
 	res_headers["Date"] = current_time()
 	res_headers["Server"] = "RON_Server/0.0.1 (Ubuntu18)"
 	res_headers["Connection"] = "Closed"
+
+	# set cookie if not 
+	if 'Cookie' not in req_headers.keys() :
+		cookie_id = shortuuid.uuid()
+		res_headers['Set-Cookie'] = "user_id=" + cookie_id + "; Max-Age=3576"
+		print("cookie set")
+	else :
+		cookie_id = req_headers['Cookie']
+
+	# to save request in log file
+	log_file = open("access.log", "a+")
+	log_data = res_headers['Date'] + "   ---   " + main_req_line + "   ---   " + req_headers['User-Agent'] + "\r\n"
+	print(log_data)
+	log_file.write(log_data)
+	log_file.close()
 
 	# remove starting '/' from the uri
 	main_req_header[1] = main_req_header[1][1:]
@@ -294,7 +313,7 @@ def client_function (client_socket) :
 		print(main_req_header[1])
 		if not os.path.exists(main_req_header[1]) :
 			# if file not exists then check if given uri is not directory
-			if os.path.isdir(main_req_header[1]) :
+			if os.path.isdir(main_req_header[1]):
 				status_code = 403
 				body = b"403 Forbidden. Given url is a directory, must be a file"
 				is_body = True
@@ -302,7 +321,7 @@ def client_function (client_socket) :
 				last_file_name = os.path.basename(main_req_header[1])
 				if len(last_file_name) > 0:
 					# now check if directory exists 
-					if os.path.exists(os.path.dirname(main_req_header[1])):
+					if os.path.exists(os.path.dirname(main_req_header[1])) or "/" not in main_req_header[1]:
 						try:
 							file_type = last_file_name.split('.')[1]
 							# For POST
@@ -321,6 +340,7 @@ def client_function (client_socket) :
 			# check the access for the file
 			last_file_name = os.path.basename(main_req_header[1])
 			file_type = last_file_name.split('.')[1]
+			print(file_type)
 			if file_type == "json" :
 				if os.access(main_req_header[1], os.W_OK):
 					f = open(main_req_header[1], 'a+')
@@ -329,9 +349,10 @@ def client_function (client_socket) :
 					print("B")
 					do_post = True
 				else :
+					print("GOd")
 					status_code = 403
 					body = b"403 Forbidden. permission denied"
-			if not do_post :
+			else :
 				status_code = 403
 				body = b"403 Forbidden. file is not json"
 		
@@ -442,14 +463,20 @@ def client_function (client_socket) :
 		# status_code = 200
 		# reply = encode_headers(main_req_header[2], status_code, res_headers)
 		# f.close()
-		if os.path.exists(os.path.dirname(main_req_header[1])): 
+		dir_name = os.path.dirname(main_req_header[1])
+		print(main_req_header[1])
+		if os.path.exists(dir_name) or "/" not in main_req_header[1]: 
 			if 'Content-Type' in req_headers.keys() :
 				if 'Content-Length' in req_headers.keys() :
-					if req_headers['Content-Length'] == len(request_body) :
+					if int(req_headers['Content-Length']) == len(request_body) :
 						if os.path.exists(main_req_header[1]) :
-							f = open(main_req_header[1], "wb")
-							status_code = 200
-							body = "200 ok. file saved"
+							if os.access(main_req_header[1], os.W_OK) :
+								f = open(main_req_header[1], "wb")
+								status_code = 200
+								body = "200 ok. file saved"
+							else :
+								status_code = 403
+								body = "403 access denied"
 						else :
 							f = open(main_req_header[1], "w+")
 							f.close()
@@ -471,9 +498,32 @@ def client_function (client_socket) :
 			status_code = 404
 			body = "404 Not found"
 		reply = encode_headers(main_req_header[2], status_code, res_headers)
-		reply = reply + body + '\n'.encode('utf-8')
+		# put request has no body in reqponse this is for test
+		# reply = reply + body.encode('utf-8') + '\n'.encode('utf-8')
+		reply = reply + '\n'.encode('utf-8')
+
+
+
 	elif main_req_header[0] == "DELETE" :
-		pass
+		# check if file exists
+		if os.path.exists(main_req_header[1]) :
+			if os.access(main_req_header[1], os.W_OK) :
+				status_code = 200
+				body = "200 Ok. File deleted"
+				try :
+					os.remove(main_req_header[1])
+				except :
+					status_code = 202
+					body = "202 Accepted. Unable to delete"
+			else :
+				status_code = 202
+				body = "202 Accepted. file not deleted"
+		else :
+			status_code = 404
+			body = "404 not found"
+		reply = encode_headers(main_req_header[2], status_code, res_headers)
+		reply = reply + body.encode('utf-8') + '\n'.encode('utf-8')
+
 	else :
 		status_code = 405
 		body = "405 Method Not Allowed"
