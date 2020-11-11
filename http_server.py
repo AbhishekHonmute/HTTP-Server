@@ -4,17 +4,46 @@ import datetime
 import socket
 import json
 import re
-# for genrerating cookie 
+# for genrerating cookie id
 import shortuuid
 
-# Constants
+
+# Configuration dict is maintained to store data drom config file
+configuration = {}
+configuration['documentRoot'] = "./"
+configuration['userName'] = "111803055"
+configuration['passWord'] = "87658765"
+configuration['maxNoOfConnections'] = "10"
+configuration['portNo'] = "12000"
 connected_clients = []
 connection_queue_limit = 5
 request_data_limit = 1024
 
+# read data from config file which is stored in configuration dict
+try :	
+	config_file = open("http_server.config", "r")
+	lines = config_file.readlines()
+	for line in lines :
+		line = line.strip()
+		if len(line) <= 1 or line[0] == "#":
+			continue
+		key, value = line.split(" : ")
+		configuration[key] = value
+	config_file.close()
+except :
+	print("http_server.config file not found. Applying default settings")
+print(configuration)
+
+
+
+
 serversocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-# serverport = 90
-serverport = int(sys.argv[1])
+# configuration['portNo'] = 90
+# to check if port no is given as command line arg
+try :
+	configuration['portNo'] = int(sys.argv[1])
+except :
+	pass
 
 # status codes 
 status_codes = {
@@ -36,7 +65,7 @@ status_codes = {
 
 # binding port 
 try :
-	serversocket.bind(('', serverport))
+	serversocket.bind(('', configuration['portNo']))
 	print("Server started")
 except :
 	print("Given port is busy. Please select another one")
@@ -191,7 +220,8 @@ def client_function (client_socket) :
 		cookie_id = req_headers['Cookie']
 
 	# remove starting '/' from the uri
-	main_req_header[1] = main_req_header[1][1:]
+	# main_req_header[1] = main_req_header[1][1:]
+	main_req_header[1] = configuration['documentRoot'] + main_req_header[1]
 
 	# to handle http version not supported
 	reply = "hey"
@@ -525,7 +555,8 @@ def client_function (client_socket) :
 
 	# to save request in log file
 	log_file = open("log_files/access.log", "a+")
-	log_data = res_headers['Date'] + " --- " + main_req_line + " --- " + status_code + " --- " + req_headers['User-Agent'] + "\r\n"
+	# print(type(status_code))
+	log_data = res_headers['Date'] + " --- " + main_req_line + " --- " + str(status_code) + " --- " + req_headers['User-Agent'] + "\r\n"
 	log_file.write(log_data)
 	log_file.close()
 	
@@ -533,7 +564,7 @@ def client_function (client_socket) :
 	error_codes = [400, 403, 404, 405, 411, 412, 500, 505]
 	if status_code in error_codes :
 		log_file = open("log_files/error.log", "a+")
-		log_data = res_headers['Date'] + " --- " + main_req_line + " --- " + status_code + " --- " + status_codes[status_code] + "\r\n"
+		log_data = res_headers['Date'] + " --- " + main_req_line + " --- " + str(status_code) + " --- " + status_codes[status_code] + "\r\n"
 		print(log_data)
 		log_file.write(log_data)
 		log_file.close()
